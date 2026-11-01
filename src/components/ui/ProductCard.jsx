@@ -16,7 +16,7 @@ export default function ProductCard({ product, onEnquire, isWishlisted, onToggle
   return (
     <article className="product-card">
       <Link
-        to={`/products/${product.slug || product.id}`}
+        to={`/products/${product.id || product.slug}`}
         className="product-image-link"
         aria-label={`View ${product.name}`}
       >
@@ -44,7 +44,7 @@ export default function ProductCard({ product, onEnquire, isWishlisted, onToggle
         <div className="product-meta-top">
           {brandName && <span className="product-brand">{brandName}</span>}
           <h3 className="product-name">
-            <Link to={`/products/${product.slug || product.id}`}>{product.name}</Link>
+            <Link to={`/products/${product.id || product.slug}`}>{product.name}</Link>
           </h3>
         </div>
         <button

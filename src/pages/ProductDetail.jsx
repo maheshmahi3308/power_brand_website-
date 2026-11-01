@@ -54,9 +54,14 @@ export default function ProductDetail() {
         query = query.eq('slug', slug);
       }
 
-      const { data, error: pError } = await query.maybeSingle();
+      // Safe limit(1) prevents PostgREST PGRST116 'multiple rows returned' crash
+      const { data: rows, error: pError } = await query
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (pError) throw pError;
+      const data = rows && rows.length > 0 ? rows[0] : null;
+
       if (!data) {
         setError('Product not found or is currently unavailable.');
         setLoading(false);
