@@ -2,22 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Phone, MessageCircle, Heart, ShieldCheck,
-  Package, Truck, ArrowUpRight, CheckCircle2, AlertCircle
+  Package, Truck, ArrowUpRight, CheckCircle2, AlertCircle,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { money, discountPct } from '../lib/money';
 import { CONTACT, productWhatsappUrl } from '../lib/contact';
 import EnquiryModal from '../components/ui/EnquiryModal';
 import ProductCard from '../components/ui/ProductCard';
-
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80';
+import { getPrimaryImageUrl, getAllProductImages, FALLBACK_IMAGE } from '../lib/imageUtils';
 
 export default function ProductDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState(null);
-  const [activeImage, setActiveImage] = useState('');
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -62,14 +63,21 @@ export default function ProductDetail() {
         return;
       }
 
+      const normalizedImages = getAllProductImages(data);
+      const primaryUrl = getPrimaryImageUrl(data);
+      const galleryUrls = normalizedImages.map(img => img.image_url);
+      const finalGallery = galleryUrls.length > 0 ? galleryUrls : [primaryUrl];
+
       const prod = {
         ...data,
         brand_name: data.brands?.name || 'Brand',
-        display_image: data.image_url || data.images?.[0] || FALLBACK_IMAGE
+        display_image: primaryUrl,
+        all_images: finalGallery
       };
 
       setProduct(prod);
-      setActiveImage(prod.display_image);
+      setGalleryImages(finalGallery);
+      setActiveImageIdx(0);
       setSelectedSize(prod.sizes?.[0] || '');
       setSelectedColor(prod.colors?.[0] || '');
       document.title = `${prod.name} | ${prod.brand_name} — FORME`;
@@ -88,7 +96,7 @@ export default function ProductDetail() {
           setRelatedProducts(relData.map(r => ({
             ...r,
             brand_name: r.brands?.name || 'Brand',
-            display_image: r.image_url || r.images?.[0] || ''
+            display_image: getPrimaryImageUrl(r)
           })));
         }
       }
@@ -98,6 +106,14 @@ export default function ProductDetail() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePrevImage = () => {
+    setActiveImageIdx(prev => (prev === 0 ? galleryImages.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = () => {
+    setActiveImageIdx(prev => (prev === galleryImages.length - 1 ? 0 : prev + 1));
   };
 
   if (loading) {
@@ -121,11 +137,6 @@ export default function ProductDetail() {
     );
   }
 
-  const galleryImages = [
-    product.display_image,
-    ...(product.images || []).filter(img => img && img !== product.display_image)
-  ].filter(Boolean);
-
   const pct = discountPct(product.price, product.sale_price);
 
   return (
@@ -146,11 +157,11 @@ export default function ProductDetail() {
 
         {/* Product Layout Grid */}
         <div className="product-layout">
-          {/* Gallery Column */}
+          {/* Gallery Column with Interactive Carousel */}
           <div className="product-gallery">
             <div className="main-image-wrap">
               <img
-                src={activeImage || FALLBACK_IMAGE}
+                src={galleryImages[activeImageIdx] || FALLBACK_IMAGE}
                 alt={product.name}
                 className="main-product-img"
                 onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
@@ -161,6 +172,31 @@ export default function ProductDetail() {
               {pct > 0 && (
                 <span className="product-badge badge-offer">-{pct}% OFF</span>
               )}
+
+              {/* Carousel Arrows & Counter */}
+              {galleryImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="gallery-nav-btn prev"
+                    onClick={handlePrevImage}
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    className="gallery-nav-btn next"
+                    onClick={handleNextImage}
+                    aria-label="Next image"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                  <span className="gallery-counter">
+                    {activeImageIdx + 1} / {galleryImages.length}
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Thumbnails */}
@@ -169,10 +205,17 @@ export default function ProductDetail() {
                 {galleryImages.map((img, idx) => (
                   <button
                     key={idx}
-                    className={`thumb-btn ${activeImage === img ? 'active' : ''}`}
-                    onClick={() => setActiveImage(img)}
+                    type="button"
+                    className={`thumb-btn ${activeImageIdx === idx ? 'active' : ''}`}
+                    onClick={() => setActiveImageIdx(idx)}
+                    aria-label={`View product image ${idx + 1}`}
                   >
-                    <img src={img} alt={`${product.name} view ${idx + 1}`} />
+                    <img
+                      src={img || FALLBACK_IMAGE}
+                      alt={`${product.name} view ${idx + 1}`}
+                      loading="lazy"
+                      onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
+                    />
                   </button>
                 ))}
               </div>

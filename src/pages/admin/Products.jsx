@@ -7,6 +7,9 @@ import { supabase } from '../../lib/supabase';
 import { money, discountPct } from '../../lib/money';
 import { useToast } from '../../context/ToastContext';
 import Modal from '../../components/ui/Modal';
+import ProductImageManager from '../../components/admin/ProductImageManager';
+import { getAllProductImages, getPrimaryImageUrl } from '../../lib/imageUtils';
+import { deleteProductImageFromStorage } from '../../lib/productImageService';
 
 const CATEGORIES = ['Men', 'Women', 'Kids'];
 const AVAILABILITIES = ['Available', 'Check availability', 'Out of stock'];
@@ -46,6 +49,8 @@ export default function AdminProducts() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [deletedStoragePaths, setDeletedStoragePaths] = useState([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -86,6 +91,8 @@ export default function AdminProducts() {
 
   const openAddModal = () => {
     setEditProduct(null);
+    setGalleryImages([]);
+    setDeletedStoragePaths([]);
     setForm({
       ...INITIAL_FORM,
       brand_id: brands[0]?.id || ''
@@ -95,6 +102,9 @@ export default function AdminProducts() {
 
   const openEditModal = (p) => {
     setEditProduct(p);
+    const existingImages = getAllProductImages(p);
+    setGalleryImages(existingImages);
+    setDeletedStoragePaths([]);
     setForm({
       name: p.name || '',
       slug: p.slug || '',
@@ -109,7 +119,7 @@ export default function AdminProducts() {
       sku: p.sku || '',
       stock_quantity: p.stock_quantity ?? '',
       availability: p.availability || 'Available',
-      image_url: p.image_url || '',
+      image_url: p.primary_image || p.image_url || '',
       is_published: p.is_published ?? true,
       is_featured: p.is_featured ?? false,
       is_new_arrival: p.is_new_arrival ?? false,
@@ -130,6 +140,19 @@ export default function AdminProducts() {
       const slugVal = form.slug.trim() ||
         form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
+      // Determine primary image URL
+      const primaryImgObj = galleryImages.find(img => img.is_primary) || galleryImages[0];
+      const primaryUrl = primaryImgObj?.image_url || null;
+
+      // Structured images payload
+      const structuredImages = galleryImages.map((img, idx) => ({
+        image_url: img.image_url,
+        image_source: img.image_source || 'external_url',
+        display_order: idx,
+        is_primary: primaryUrl === img.image_url,
+        storage_path: img.storage_path || null
+      }));
+
       const payload = {
         name: form.name.trim(),
         slug: slugVal,
@@ -144,7 +167,9 @@ export default function AdminProducts() {
         sku: form.sku.trim() || null,
         stock_quantity: form.stock_quantity !== '' ? parseInt(form.stock_quantity, 10) : null,
         availability: form.availability,
-        image_url: form.image_url.trim() || null,
+        image_url: primaryUrl,
+        primary_image: primaryUrl,
+        images: structuredImages,
         is_published: form.is_published,
         publication_status: form.is_published ? 'published' : 'draft',
         is_featured: form.is_featured,
@@ -165,7 +190,32 @@ export default function AdminProducts() {
           .insert(payload);
       }
 
+      // Seamless fallback if schema migration 002 is not yet executed in Supabase SQL editor
+      if (result.error) {
+        const errMsg = result.error.message || '';
+        if (errMsg.includes('primary_image') || errMsg.includes('array') || errMsg.includes('column')) {
+          const fallbackPayload = {
+            ...payload,
+            images: galleryImages.map(img => img.image_url)
+          };
+          delete fallbackPayload.primary_image;
+
+          if (editProduct) {
+            result = await supabase.from('products').update(fallbackPayload).eq('id', editProduct.id);
+          } else {
+            result = await supabase.from('products').insert(fallbackPayload);
+          }
+        }
+      }
+
       if (result.error) throw result.error;
+
+      // Clean up removed uploaded images from Supabase Storage
+      if (deletedStoragePaths.length > 0) {
+        deletedStoragePaths.forEach(path => {
+          deleteProductImageFromStorage(path);
+        });
+      }
 
       toast(`Product ${editProduct ? 'updated' : 'created'} successfully.`, 'success');
       setModalOpen(false);
@@ -209,6 +259,15 @@ export default function AdminProducts() {
         .eq('id', p.id);
 
       if (error) throw error;
+
+      // Clean up uploaded files from Supabase Storage
+      const allImgs = getAllProductImages(p);
+      allImgs.forEach(img => {
+        if (img.image_source === 'upload' || img.storage_path) {
+          deleteProductImageFromStorage(img.storage_path || img.image_url);
+        }
+      });
+
       setProducts(products.filter(x => x.id !== p.id));
       toast(`Product "${p.name}" removed from catalogue.`, 'success');
     } catch (err) {
@@ -315,8 +374,8 @@ export default function AdminProducts() {
                     <tr key={p.id}>
                       <td>
                         <div className="admin-product-cell">
-                          {p.image_url ? (
-                            <img src={p.image_url} alt="" className="admin-product-thumb" />
+                          {getPrimaryImageUrl(p) ? (
+                            <img src={getPrimaryImageUrl(p)} alt="" className="admin-product-thumb" />
                           ) : (
                             <div className="admin-product-thumb placeholder"><Image size={16} /></div>
                           )}
@@ -476,15 +535,15 @@ export default function AdminProducts() {
             </label>
           </div>
 
-          <label>
-            Image URL
-            <input
-              type="url"
-              placeholder="https://images.unsplash.com/..."
-              value={form.image_url}
-              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-            />
-          </label>
+          {/* Product Images & Gallery Management */}
+          <ProductImageManager
+            images={galleryImages}
+            onChange={setGalleryImages}
+            productId={editProduct?.id || 'new'}
+            onTrackDeletedImage={(storagePath) => {
+              setDeletedStoragePaths(prev => [...prev, storagePath]);
+            }}
+          />
 
           <div className="form-two">
             <label>

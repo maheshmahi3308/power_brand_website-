@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import ProductCard from '../components/ui/ProductCard';
 import EnquiryModal from '../components/ui/EnquiryModal';
 import { Package, Tag } from 'lucide-react';
+import { getPrimaryImageUrl } from '../lib/imageUtils';
 
 export default function Offers() {
   const [products, setProducts] = useState([]);
@@ -36,7 +37,7 @@ export default function Offers() {
       setProducts((data || []).map(p => ({
         ...p,
         brand_name: p.brands?.name || 'Brand',
-        display_image: p.image_url || p.images?.[0] || ''
+        display_image: getPrimaryImageUrl(p)
       })));
     } catch (err) {
       console.error(err);

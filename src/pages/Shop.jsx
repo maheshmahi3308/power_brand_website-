@@ -7,6 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import ProductCard from '../components/ui/ProductCard';
 import EnquiryModal from '../components/ui/EnquiryModal';
+import { getPrimaryImageUrl } from '../lib/imageUtils';
 
 const CATEGORIES = [
   { id: 'All', label: 'All Departments' },
@@ -81,7 +82,7 @@ export default function Shop({ defaultCategory = null, pageTitle = null }) {
       setProducts((prodRes.data || []).map(p => ({
         ...p,
         brand_name: p.brands?.name || 'Brand',
-        display_image: p.image_url || p.images?.[0] || ''
+        display_image: getPrimaryImageUrl(p)
       })));
 
       setBrands(brandRes.data || []);

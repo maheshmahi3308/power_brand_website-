@@ -10,6 +10,7 @@ import { money } from '../lib/money';
 import { CONTACT, whatsappUrl, productWhatsappUrl } from '../lib/contact';
 import ProductCard from '../components/ui/ProductCard';
 import EnquiryModal from '../components/ui/EnquiryModal';
+import { getPrimaryImageUrl } from '../lib/imageUtils';
 
 const CATEGORIES = [
   {
@@ -75,7 +76,7 @@ export default function Home() {
         setFeaturedProducts(fData.map(p => ({
           ...p,
           brand_name: p.brands?.name || 'Brand',
-          display_image: p.image_url || p.images?.[0] || ''
+          display_image: getPrimaryImageUrl(p)
         })));
       }
 
@@ -91,7 +92,7 @@ export default function Home() {
         setNewArrivals(nData.map(p => ({
           ...p,
           brand_name: p.brands?.name || 'Brand',
-          display_image: p.image_url || p.images?.[0] || ''
+          display_image: getPrimaryImageUrl(p)
         })));
       }
 
@@ -107,7 +108,7 @@ export default function Home() {
         setOfferProducts(oData.map(p => ({
           ...p,
           brand_name: p.brands?.name || 'Brand',
-          display_image: p.image_url || p.images?.[0] || ''
+          display_image: getPrimaryImageUrl(p)
         })));
       }
     } catch (err) {

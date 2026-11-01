@@ -2,17 +2,10 @@ import React from 'react';
 import { ArrowUpRight, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { money, discountPct } from '../../lib/money';
-
-const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80';
+import { getPrimaryImageUrl, FALLBACK_IMAGE } from '../../lib/imageUtils';
 
 export function imageFor(product) {
-  return (
-    product?.display_image ||
-    product?.image_url ||
-    product?.images?.[0] ||
-    FALLBACK_IMAGE
-  );
+  return getPrimaryImageUrl(product);
 }
 
 export default function ProductCard({ product, onEnquire, isWishlisted, onToggleWishlist }) {
